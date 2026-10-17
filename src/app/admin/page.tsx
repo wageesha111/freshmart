@@ -532,12 +532,12 @@ export default function AdminDashboardPage() {
           style={{
             maxWidth: '1360px',
             margin: '0 auto',
-            padding: '12px 24px',
+            padding: '12px 16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '16px',
+            gap: '12px',
           }}
         >
           {/* Logo & Status Badge */}
@@ -694,8 +694,8 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Tab Navigation Track */}
-        <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '0 24px' }}>
-          <div style={{ maxWidth: '1360px', margin: '0 auto', display: 'flex', gap: '8px' }}>
+        <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '0 16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+          <div style={{ maxWidth: '1360px', margin: '0 auto', display: 'flex', gap: '8px', minWidth: 'max-content' }}>
             {[
               {
                 id: 'overview',
@@ -759,6 +759,8 @@ export default function AdminDashboardPage() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '7px',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -771,7 +773,7 @@ export default function AdminDashboardPage() {
       </header>
 
       {/* Main Content Area */}
-      <main style={{ maxWidth: '1360px', margin: '28px auto', padding: '0 24px' }}>
+      <main style={{ maxWidth: '1360px', margin: '20px auto', padding: '0 16px' }}>
         
         {/* ====================================================
             TAB 1: OVERVIEW & ANALYTICS
@@ -1035,7 +1037,7 @@ export default function AdminDashboardPage() {
                 boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
               }}
             >
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', maxWidth: '100%', paddingBottom: '4px' }}>
                 {[
                   { id: 'all', label: 'All Orders' },
                   { id: 'processing', label: 'Placed / Packing' },
@@ -1053,6 +1055,8 @@ export default function AdminDashboardPage() {
                       fontWeight: 600,
                       border: '1px solid',
                       cursor: 'pointer',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
                       borderColor: orderFilterStatus === tab.id ? '#15803d' : '#e2e8f0',
                       background: orderFilterStatus === tab.id ? '#f0fdf4' : '#ffffff',
                       color: orderFilterStatus === tab.id ? '#15803d' : '#64748b',
@@ -1063,7 +1067,7 @@ export default function AdminDashboardPage() {
                 ))}
               </div>
 
-              <div style={{ position: 'relative', minWidth: '280px' }}>
+              <div style={{ position: 'relative', minWidth: '200px', flex: 1, width: '100%' }}>
                 <input
                   type="text"
                   placeholder="Search order ID, customer, address..."
@@ -1382,7 +1386,7 @@ export default function AdminDashboardPage() {
                 boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1, minWidth: '220px' }}>
                 <select
                   value={productCategoryFilter}
                   onChange={(e) => setProductCategoryFilter(e.target.value)}
@@ -1405,7 +1409,7 @@ export default function AdminDashboardPage() {
                   ))}
                 </select>
 
-                <div style={{ position: 'relative', minWidth: '240px' }}>
+                <div style={{ position: 'relative', minWidth: '180px', flex: 1 }}>
                   <input
                     type="text"
                     placeholder="Search product name or SKU..."
@@ -1677,6 +1681,7 @@ export default function AdminDashboardPage() {
          ==================================================== */}
       {isAddProductOpen && (
         <div
+          className="admin-modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1691,6 +1696,7 @@ export default function AdminDashboardPage() {
           }}
         >
           <div
+            className="admin-modal-container"
             style={{
               background: '#ffffff',
               borderRadius: '20px',
@@ -2063,6 +2069,7 @@ export default function AdminDashboardPage() {
          ==================================================== */}
       {isEditProductOpen && editingProduct && (
         <div
+          className="admin-modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
@@ -2077,6 +2084,7 @@ export default function AdminDashboardPage() {
           }}
         >
           <div
+            className="admin-modal-container"
             style={{
               background: '#ffffff',
               borderRadius: '20px',

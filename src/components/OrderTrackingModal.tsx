@@ -84,6 +84,7 @@ export default function OrderTrackingModal() {
 
   return (
     <div
+      className="order-tracking-overlay"
       style={{
         position: 'fixed',
         inset: 0,

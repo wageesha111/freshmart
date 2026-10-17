@@ -95,16 +95,23 @@ export default function ProductCard({ product }: ProductCardProps) {
                 className="qty-btn"
                 onClick={() => changeQty(product.id, -1)}
                 aria-label="Decrease quantity"
+                style={{ width: '32px', height: '32px', minWidth: '32px' }}
               >
                 −
               </button>
-              <span style={{ fontWeight: 700, color: 'var(--primary-dark)', fontSize: '0.92rem', fontVariantNumeric: 'tabular-nums' }}>
-                {qtyInCart} in cart
-              </span>
+              <div style={{ textAlign: 'center', lineHeight: 1.1 }}>
+                <span style={{ fontWeight: 800, color: 'var(--primary-dark)', fontSize: '0.98rem', fontVariantNumeric: 'tabular-nums' }}>
+                  {qtyInCart}
+                </span>
+                <span style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>
+                  in cart
+                </span>
+              </div>
               <button
                 className="qty-btn"
                 onClick={() => changeQty(product.id, 1)}
                 aria-label="Increase quantity"
+                style={{ width: '32px', height: '32px', minWidth: '32px' }}
               >
                 +
               </button>

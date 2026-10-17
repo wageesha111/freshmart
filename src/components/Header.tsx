@@ -14,6 +14,7 @@ interface HeaderProps {
 export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
   const {
     cartCount,
+    subtotal,
     wishlist,
     user,
     setIsCartOpen,
@@ -26,6 +27,7 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
   const [suggestions, setSuggestions] = useState<typeof ALL_PRODUCTS>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -250,21 +252,43 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
         <div className="container nav-inner">
           <ul className="nav-list" id="nav-list">
             <li>
-              <Link href="/" className="nav-link active">
+              <Link href="/" className="nav-link active" onClick={() => setMobileMenuOpen(false)}>
                 Home
               </Link>
             </li>
             <li className="nav-has-dropdown">
-              <a href="#categories" className="nav-link">
-                Categories ▾
+              <a
+                href="#categories"
+                className="nav-link"
+                onClick={(e) => {
+                  if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+                    e.preventDefault();
+                    setMobileCategoriesOpen(!mobileCategoriesOpen);
+                  } else {
+                    setMobileMenuOpen(false);
+                  }
+                }}
+              >
+                <span>Categories</span>
+                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                  {mobileCategoriesOpen ? '▲' : '▾'}
+                </span>
               </a>
-              <div className="nav-dropdown">
+              <div
+                className="nav-dropdown"
+                style={{
+                  display: mobileCategoriesOpen ? 'grid' : undefined,
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '4px',
+                  padding: '8px',
+                }}
+              >
                 <a
                   href="#categories"
                   className="dropdown-item"
                   onClick={() => handleCategoryClick('fruits')}
                 >
-                  Fruits & Vegetables
+                  Fruits & Veggies
                 </a>
                 <a
                   href="#categories"
@@ -318,28 +342,71 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
               </div>
             </li>
             <li>
-              <a href="#deals" className="nav-link">
+              <a href="#deals" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
                 Deals
               </a>
             </li>
             <li>
-              <a href="#products" className="nav-link">
+              <a href="#products" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
                 Products
               </a>
             </li>
             <li>
-              <a href="#about" className="nav-link">
+              <a href="#about" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
                 About
               </a>
             </li>
+
+            {/* Mobile-Only Shortcuts */}
+            <li style={{ marginTop: '8px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+              <button
+                className="nav-link"
+                style={{ width: '100%', textAlign: 'left', background: 'var(--green-50)', color: 'var(--primary-dark)', fontWeight: 700 }}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsAccountOpen(true);
+                }}
+              >
+                <span>👤 {user ? user.name : 'Account & Orders'}</span>
+                <span>→</span>
+              </button>
+            </li>
             <li>
-              <a href="#contact" className="nav-link">
-                Contact
-              </a>
+              <Link
+                href="/admin"
+                className="nav-link"
+                style={{ width: '100%', background: '#f8fafc', color: '#0f172a', fontWeight: 600, border: '1px solid var(--border)' }}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span>Store Admin Hub</span>
+                <span>→</span>
+              </Link>
             </li>
           </ul>
         </div>
       </nav>
+
+      {/* Floating Bottom Cart Pill for Smartphones */}
+      {cartCount > 0 && (
+        <div className="mobile-cart-float-bar">
+          <div className="mobile-cart-float-content" onClick={() => setIsCartOpen(true)}>
+            <div className="mobile-cart-float-left">
+              <span className="mobile-cart-count-pill">
+                {cartCount} {cartCount === 1 ? 'item' : 'items'}
+              </span>
+              <span className="mobile-cart-total-price tabular-nums">
+                ₹{subtotal.toFixed(2)}
+              </span>
+            </div>
+            <button className="mobile-cart-view-btn" aria-label="View Cart">
+              <span>View Cart</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
