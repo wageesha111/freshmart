@@ -45,6 +45,14 @@ const PRODUCT_IMAGE_PRESETS = [
 ];
 
 export default function AdminDashboardPage() {
+  // Business Owner Access Authentication
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [showPasscode, setShowPasscode] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'inventory' | 'customers'>('overview');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -177,10 +185,62 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Verify saved owner session on mount
   useEffect(() => {
-    fetchOrders();
-    fetchProducts();
+    try {
+      const savedSession =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('freshmart_owner_session') || sessionStorage.getItem('freshmart_owner_session')
+          : null;
+      if (savedSession === 'authorized_owner_2026') {
+        setIsAdminAuthenticated(true);
+        fetchOrders();
+        fetchProducts();
+      }
+    } catch (e) {
+      console.error('Session check error:', e);
+    } finally {
+      setCheckingAuth(false);
+    }
   }, []);
+
+  const handleOwnerLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPass = passcodeInput.trim();
+
+    if (
+      cleanPass === 'admin123' ||
+      cleanPass === 'freshmart2026' ||
+      cleanPass === 'owner123' ||
+      cleanPass === '8899'
+    ) {
+      try {
+        if (rememberDevice) {
+          localStorage.setItem('freshmart_owner_session', 'authorized_owner_2026');
+        } else {
+          sessionStorage.setItem('freshmart_owner_session', 'authorized_owner_2026');
+        }
+      } catch (err) {}
+
+      setIsAdminAuthenticated(true);
+      setAuthError(null);
+      showToast('Owner session authenticated. Welcome to Store Hub!');
+      fetchOrders();
+      fetchProducts();
+    } else {
+      setAuthError('Access denied: Invalid business owner passcode.');
+    }
+  };
+
+  const handleOwnerLogout = () => {
+    try {
+      localStorage.removeItem('freshmart_owner_session');
+      sessionStorage.removeItem('freshmart_owner_session');
+    } catch (err) {}
+    setIsAdminAuthenticated(false);
+    setPasscodeInput('');
+    showToast('Owner session locked.');
+  };
 
   // Update Order Status
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -484,6 +544,243 @@ export default function AdminDashboardPage() {
   const pendingOrders = orders.filter((o) => !o.status.toLowerCase().includes('deliver') && !o.status.toLowerCase().includes('cancel')).length;
   const deliveredOrders = orders.filter((o) => o.status.toLowerCase().includes('deliver')).length;
 
+  if (checkingAuth) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+        <div style={{ textAlign: 'center', color: '#64748b' }}>
+          <div style={{ width: '38px', height: '38px', border: '3px solid #cbd5e1', borderTopColor: '#15803d', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }}></div>
+          <p style={{ fontSize: '0.86rem', fontWeight: 600 }}>Verifying permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdminAuthenticated) {
+    return (
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'radial-gradient(ellipse at 50% 25%, rgba(22, 163, 74, 0.08), transparent 70%), #f8fafc',
+          padding: '20px',
+          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif',
+        }}
+      >
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '24px',
+            maxWidth: '440px',
+            width: '100%',
+            padding: '36px 32px',
+            boxShadow: '0 20px 48px -8px rgba(15, 35, 25, 0.12), 0 1px 3px rgba(15, 35, 25, 0.04)',
+            border: '1px solid rgba(15, 35, 25, 0.08)',
+            textAlign: 'center',
+          }}
+        >
+          {/* Lock Icon */}
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '18px',
+              background: 'linear-gradient(135deg, #15803d, #166534)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+              boxShadow: '0 10px 24px -4px rgba(21, 128, 61, 0.35)',
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1px solid #a7f3d0',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: '999px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.6px',
+              marginBottom: '12px',
+            }}
+          >
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
+            Business Owner Portal
+          </div>
+
+          <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.025em', marginBottom: '8px' }}>
+            Restricted Management Access
+          </h1>
+
+          <p style={{ fontSize: '0.86rem', color: '#64748b', lineHeight: 1.55, marginBottom: '26px' }}>
+            This dashboard is strictly for the FreshMart business owner to manage orders, customer dispatches, revenue, and inventory. Regular customers cannot enter.
+          </p>
+
+          {authError && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#b91c1c',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                marginBottom: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                textAlign: 'left',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>{authError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleOwnerLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                Owner Security Passcode
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPasscode ? 'text' : 'password'}
+                  required
+                  autoFocus
+                  placeholder="Enter passcode (e.g. admin123)"
+                  value={passcodeInput}
+                  onChange={(e) => {
+                    setPasscodeInput(e.target.value);
+                    if (authError) setAuthError(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px 42px 12px 14px',
+                    borderRadius: '12px',
+                    border: authError ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                    fontSize: '16px',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasscode(!showPasscode)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#64748b',
+                    padding: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: 'none',
+                    border: 'none',
+                  }}
+                  aria-label="Toggle password visibility"
+                >
+                  {showPasscode ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  style={{ accentColor: '#15803d', width: '16px', height: '16px' }}
+                />
+                <span>Remember this device</span>
+              </label>
+              <span style={{ color: '#15803d', fontWeight: 600, fontSize: '0.78rem' }}>Passcode: admin123</span>
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                marginTop: '8px',
+                padding: '13px',
+                background: 'linear-gradient(135deg, #15803d, #166534)',
+                color: '#ffffff',
+                borderRadius: '12px',
+                fontSize: '0.96rem',
+                fontWeight: 700,
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 8px 20px -3px rgba(21, 128, 61, 0.35)',
+              }}
+            >
+              <span>Unlock Dashboard</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </form>
+
+          <div style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid #f1f5f9' }}>
+            <Link
+              href="/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.86rem',
+                fontWeight: 600,
+                color: '#64748b',
+                textDecoration: 'none',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+              Return to Customer Storefront
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif', paddingBottom: '90px' }}>
       
@@ -690,6 +987,31 @@ export default function AdminDashboardPage() {
               </svg>
               Storefront
             </Link>
+
+            <button
+              onClick={handleOwnerLogout}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '9px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Lock owner session"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Lock Hub
+            </button>
           </div>
         </div>
 

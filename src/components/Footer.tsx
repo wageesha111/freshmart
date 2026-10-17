@@ -123,7 +123,6 @@ export default function Footer() {
                 <li><a href="#" onClick={(e) => { e.preventDefault(); setIsAccountOpen(true); }}>Track order</a></li>
                 <li><a href="#deals">Super deals</a></li>
                 <li><a href="#about">About us</a></li>
-                <li><Link href="/admin" style={{ color: '#4ade80', fontWeight: 600 }}>Store Admin & Orders</Link></li>
               </ul>
             </div>
 
