@@ -356,31 +356,10 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
                 About
               </a>
             </li>
-
-            {/* Mobile-Only Shortcuts */}
-            <li style={{ marginTop: '8px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
-              <button
-                className="nav-link"
-                style={{ width: '100%', textAlign: 'left', background: 'var(--green-50)', color: 'var(--primary-dark)', fontWeight: 700 }}
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setIsAccountOpen(true);
-                }}
-              >
-                <span>👤 {user ? user.name : 'Account & Orders'}</span>
-                <span>→</span>
-              </button>
-            </li>
             <li>
-              <Link
-                href="/admin"
-                className="nav-link"
-                style={{ width: '100%', background: '#f8fafc', color: '#0f172a', fontWeight: 600, border: '1px solid var(--border)' }}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <span>Store Admin Hub</span>
-                <span>→</span>
-              </Link>
+              <a href="#contact" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+                Contact
+              </a>
             </li>
           </ul>
         </div>
