@@ -69,10 +69,10 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         <div className="product-price-row">
-          <span className="product-price tabular-nums">₹{product.price.toFixed(2)}</span>
+          <span className="product-price tabular-nums">Rs. {product.price.toFixed(2)}</span>
           {product.originalPrice > product.price && (
             <>
-              <span className="product-original-price tabular-nums">₹{product.originalPrice.toFixed(2)}</span>
+              <span className="product-original-price tabular-nums">Rs. {product.originalPrice.toFixed(2)}</span>
               <span className="product-discount tabular-nums">{product.discount}% OFF</span>
             </>
           )}

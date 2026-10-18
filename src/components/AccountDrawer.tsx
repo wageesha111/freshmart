@@ -299,7 +299,7 @@ export default function AccountDrawer() {
                           #{o.id}
                         </span>
                         <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
-                          ₹{o.total.toFixed(2)}
+                          Rs. {o.total.toFixed(2)}
                         </span>
                       </div>
 

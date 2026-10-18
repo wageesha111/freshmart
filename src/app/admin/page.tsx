@@ -1117,10 +1117,10 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#15803d', margin: '8px 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em' }}>
-                  ₹{totalRevenue.toFixed(2)}
+                  Rs. {totalRevenue.toFixed(2)}
                 </div>
                 <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                  Average order: <strong style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>₹{avgOrderValue.toFixed(2)}</strong>
+                  Average order: <strong style={{ color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>Rs. {avgOrderValue.toFixed(2)}</strong>
                 </div>
               </div>
 
@@ -1300,7 +1300,7 @@ export default function AdminDashboardPage() {
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#0f172a', fontSize: '0.92rem' }}>
-                          ₹{Number(o.total).toFixed(2)}
+                          Rs. {Number(o.total).toFixed(2)}
                         </span>
                         <span
                           style={{
@@ -1502,7 +1502,7 @@ export default function AdminDashboardPage() {
                       </div>
 
                       <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
-                        Total: ₹{Number(order.total).toFixed(2)}
+                        Total: Rs. {Number(order.total).toFixed(2)}
                       </div>
                     </div>
 
@@ -1545,7 +1545,7 @@ export default function AdminDashboardPage() {
 
                         <div style={{ fontSize: '0.84rem', color: '#334155', marginTop: '6px', lineHeight: 1.5 }}>
                           <div>{order.deliveryAddress || 'Standard doorstep address'}</div>
-                          <div style={{ color: '#64748b' }}>{order.city || 'Local area'}, {order.pincode || '400001'}</div>
+                          <div style={{ color: '#64748b' }}>{order.city || 'Local area'}, {order.pincode || '11410'}</div>
                         </div>
 
                         <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '8px' }}>
@@ -1574,7 +1574,7 @@ export default function AdminDashboardPage() {
                                 {item.qty} × {item.name}
                               </span>
                               <span style={{ color: '#64748b', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                                ₹{(item.price * item.qty).toFixed(2)}
+                                Rs. {(item.price * item.qty).toFixed(2)}
                               </span>
                             </div>
                           ))}
@@ -1840,11 +1840,11 @@ export default function AdminDashboardPage() {
                           </td>
 
                           <td style={{ padding: '10px 16px', fontWeight: 700, color: '#15803d', fontVariantNumeric: 'tabular-nums' }}>
-                            ₹{p.price.toFixed(2)}
+                            Rs. {p.price.toFixed(2)}
                           </td>
 
                           <td style={{ padding: '10px 16px', color: '#94a3b8', textDecoration: p.originalPrice > p.price ? 'line-through' : 'none', fontVariantNumeric: 'tabular-nums' }}>
-                            {p.originalPrice ? `₹${p.originalPrice.toFixed(2)}` : '—'}
+                            {p.originalPrice ? `Rs. ${p.originalPrice.toFixed(2)}` : '—'}
                           </td>
 
                           <td style={{ padding: '10px 16px', color: '#64748b' }}>
@@ -1938,7 +1938,7 @@ export default function AdminDashboardPage() {
               <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                    Registered Customers & Delivery Accounts
+                    Registered Customers & Delivery Accounts bla
                   </h3>
                   <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '2px 0 0 0' }}>
                     Extracted from live orders and checkout sessions
@@ -1985,7 +1985,7 @@ export default function AdminDashboardPage() {
                             {c.orderCount}
                           </td>
                           <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 700, color: '#15803d', fontVariantNumeric: 'tabular-nums' }}>
-                            ₹{c.totalSpent.toFixed(2)}
+                            Rs. {c.totalSpent.toFixed(2)}
                           </td>
                         </tr>
                       ))}
@@ -2102,7 +2102,7 @@ export default function AdminDashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
-                    Sale Price (₹) *
+                    Sale Price (Rs.) *
                   </label>
                   <input
                     type="number"
@@ -2117,7 +2117,7 @@ export default function AdminDashboardPage() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
-                    Original MRP (₹)
+                    Original MRP (Rs.)
                   </label>
                   <input
                     type="number"
@@ -2491,7 +2491,7 @@ export default function AdminDashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
-                    Sale Price (₹) *
+                    Sale Price (Rs.) *
                   </label>
                   <input
                     type="number"
@@ -2505,7 +2505,7 @@ export default function AdminDashboardPage() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
-                    Original MRP (₹)
+                    Original MRP (Rs.)
                   </label>
                   <input
                     type="number"

@@ -176,7 +176,7 @@ export default function WishlistDrawer() {
                 </div>
                 <div className="cart-item-info">
                   <div className="cart-item-name">{p.name}</div>
-                  <div className="cart-item-price">₹{p.price.toFixed(2)}</div>
+                  <div className="cart-item-price">Rs. {p.price.toFixed(2)}</div>
                   <div className="cart-item-qty-row">
                     <button
                       className="add-to-cart-btn"

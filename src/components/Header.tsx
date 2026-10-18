@@ -135,7 +135,7 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
                   )}
                   <strong>{p.name}</strong>
                   <span style={{ marginLeft: 'auto', color: 'var(--primary)', fontWeight: 600 }}>
-                    ₹{p.price}
+                    Rs. {p.price}
                   </span>
                 </div>
               ))}
@@ -374,7 +374,7 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
                 {cartCount} {cartCount === 1 ? 'item' : 'items'}
               </span>
               <span className="mobile-cart-total-price tabular-nums">
-                ₹{subtotal.toFixed(2)}
+                Rs. {subtotal.toFixed(2)}
               </span>
             </div>
             <button className="mobile-cart-view-btn" aria-label="View Cart">

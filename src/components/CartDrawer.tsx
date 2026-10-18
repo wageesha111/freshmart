@@ -195,7 +195,7 @@ export default function CartDrawer() {
                 </div>
                 <div className="cart-item-info">
                   <div className="cart-item-name">{item.name}</div>
-                  <div className="cart-item-price">₹{item.price.toFixed(2)}</div>
+                  <div className="cart-item-price">Rs. {item.price.toFixed(2)}</div>
                   <div className="cart-item-qty-row">
                     <button
                       className="qty-btn"
@@ -230,14 +230,14 @@ export default function CartDrawer() {
           <div className="cart-footer">
             <div className="cart-subtotal">
               <span>Subtotal</span>
-              <strong id="cart-subtotal">₹{subtotal.toFixed(2)}</strong>
+              <strong id="cart-subtotal">Rs. {subtotal.toFixed(2)}</strong>
             </div>
 
             <div className="cart-delivery-note">
               {isFreeDelivery ? (
                 <span>You have unlocked <strong>FREE Delivery</strong>!</span>
               ) : (
-                <span>Add ₹{amountToFree.toFixed(2)} more for <strong>FREE Delivery</strong></span>
+                <span>Add Rs. {amountToFree.toFixed(2)} more for <strong>FREE Delivery</strong></span>
               )}
             </div>
 

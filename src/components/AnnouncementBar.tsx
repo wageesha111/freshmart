@@ -11,7 +11,7 @@ export default function AnnouncementBar() {
     <div className="announcement-bar" id="announcement-bar">
       <div className="announcement-content">
         <span>
-          FREE delivery on orders above ₹499 &nbsp;|&nbsp; Use code <strong>FRESH10</strong> for 10% off your first order!
+          FREE delivery on orders above Rs. 499 &nbsp;|&nbsp; Hotline: <strong>071 418 2326</strong> &nbsp;|&nbsp; Use code <strong>FRESH10</strong> for 10% off!
         </span>
       </div>
       <button

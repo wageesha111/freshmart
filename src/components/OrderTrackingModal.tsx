@@ -488,13 +488,13 @@ export default function OrderTrackingModal() {
                             {item.name}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                            ₹{item.price.toFixed(2)} × {item.qty} {item.unit || ''}
+                            Rs. {item.price.toFixed(2)} × {item.qty} {item.unit || ''}
                           </div>
                         </div>
                       </div>
 
                       <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        ₹{(item.price * item.qty).toFixed(2)}
+                        Rs. {(item.price * item.qty).toFixed(2)}
                       </div>
                     </div>
                   ))}
@@ -513,7 +513,7 @@ export default function OrderTrackingModal() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748b', marginBottom: '6px' }}>
                   <span>Item Subtotal</span>
-                  <span>₹{order.total.toFixed(2)}</span>
+                  <span>Rs. {order.total.toFixed(2)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748b', marginBottom: '6px' }}>
                   <span>Delivery Charges</span>
@@ -532,7 +532,7 @@ export default function OrderTrackingModal() {
                   }}
                 >
                   <span>Total Amount Paid</span>
-                  <span>₹{order.total.toFixed(2)}</span>
+                  <span>Rs. {order.total.toFixed(2)}</span>
                 </div>
               </div>
 

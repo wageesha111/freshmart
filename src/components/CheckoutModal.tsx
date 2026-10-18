@@ -42,8 +42,8 @@ export default function CheckoutModal() {
     phone: '',
     pincode: '',
     street: '',
-    city: 'Mumbai',
-    state: 'Maharashtra',
+    city: '',
+    state: 'Western Province',
     notes: '',
   });
 
@@ -102,8 +102,8 @@ export default function CheckoutModal() {
     }
 
     if (step === 2) {
-      if (!address.firstName || !address.phone || !address.pincode || !address.street) {
-        showToast('Please fill in all required address fields', '⚠️');
+      if (!address.firstName || !address.phone || !address.pincode || !address.street || !address.city) {
+        showToast('Please fill in all required address fields including City', '⚠️');
         return;
       }
     }
@@ -115,7 +115,7 @@ export default function CheckoutModal() {
 
       const newOrder: Order = {
         id: newOrderId,
-        date: new Date().toLocaleDateString('en-IN', {
+        date: new Date().toLocaleDateString('en-LK', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
@@ -129,11 +129,11 @@ export default function CheckoutModal() {
         address: { ...address },
         paymentMethod:
           paymentMethod === 'upi'
-            ? 'UPI / Instant Pay'
+            ? 'Online / Card Payment'
             : paymentMethod === 'card'
             ? 'Credit / Debit Card'
             : paymentMethod === 'netbank'
-            ? 'Net Banking'
+            ? 'Direct Bank Transfer'
             : 'Cash on Delivery',
         promoDiscount,
         deliveryFee,
@@ -222,7 +222,7 @@ export default function CheckoutModal() {
                       )}
                       <span>{item.name} × {item.qty}</span>
                     </span>
-                    <strong>₹{(item.price * item.qty).toFixed(2)}</strong>
+                    <strong>Rs. {(item.price * item.qty).toFixed(2)}</strong>
                   </div>
                 ))}
               </div>
@@ -230,21 +230,21 @@ export default function CheckoutModal() {
               <div className="checkout-totals" style={{ background: 'var(--bg-body)', padding: '16px', borderRadius: '12px' }}>
                 <div className="checkout-total-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span>Subtotal</span>
-                  <span>₹{subtotal.toFixed(2)}</span>
+                  <span>Rs. {subtotal.toFixed(2)}</span>
                 </div>
                 <div className="checkout-total-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span>Delivery</span>
-                  <span>{deliveryFee === 0 ? 'Free' : `₹${deliveryFee.toFixed(2)}`}</span>
+                  <span>{deliveryFee === 0 ? 'Free' : `Rs. ${deliveryFee.toFixed(2)}`}</span>
                 </div>
                 {promoApplied && (
                   <div className="checkout-total-row" style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', marginBottom: '6px' }}>
                     <span>Promo Discount</span>
-                    <span>-₹{promoDiscount.toFixed(2)}</span>
+                    <span>-Rs. {promoDiscount.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="checkout-total-row grand" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.2rem', color: 'var(--primary)', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
                   <span>Total</span>
-                  <span>₹{grandTotal.toFixed(2)}</span>
+                  <span>Rs. {grandTotal.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -272,7 +272,7 @@ export default function CheckoutModal() {
                   <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>First Name *</label>
                   <input
                     type="text"
-                    placeholder="Rahul"
+                    placeholder="Wageesha"
                     value={address.firstName}
                     onChange={(e) => setAddress({ ...address, firstName: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
@@ -282,7 +282,7 @@ export default function CheckoutModal() {
                   <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Last Name</label>
                   <input
                     type="text"
-                    placeholder="Sharma"
+                    placeholder="Vihangana"
                     value={address.lastName}
                     onChange={(e) => setAddress({ ...address, lastName: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
@@ -292,20 +292,30 @@ export default function CheckoutModal() {
                   <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Phone *</label>
                   <input
                     type="tel"
-                    placeholder="+91 99999 00000"
+                    placeholder="+94 71 418 2326"
                     value={address.phone}
                     onChange={(e) => setAddress({ ...address, phone: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
                   />
                 </div>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Pincode *</label>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Postal Code / Pincode *</label>
                   <input
                     type="text"
-                    placeholder="400001"
-                    maxLength={6}
+                    placeholder="11410"
+                    maxLength={8}
                     value={address.pincode}
                     onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
+                  />
+                </div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>City / Town *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Seeduwa, Colombo, Negombo, Kandy"
+                    value={address.city}
+                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
                   />
                 </div>
@@ -313,7 +323,7 @@ export default function CheckoutModal() {
                   <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Street Address *</label>
                   <input
                     type="text"
-                    placeholder="Building, Flat, Street name"
+                    placeholder="No. 197 / 1st Lane, Seeduwa"
                     value={address.street}
                     onChange={(e) => setAddress({ ...address, street: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}
@@ -350,9 +360,9 @@ export default function CheckoutModal() {
               <p className="form-section-title" style={{ fontWeight: 700, marginBottom: '14px' }}>Select Payment Method</p>
               <div className="payment-methods" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
-                  { id: 'upi', icon: '📱', title: 'UPI', desc: 'Google Pay, PhonePe, Paytm, BHIM' },
-                  { id: 'card', icon: '💳', title: 'Credit / Debit Card', desc: 'Visa, Mastercard, RuPay' },
-                  { id: 'netbank', icon: '🏦', title: 'Net Banking', desc: 'All major banks supported' },
+                  { id: 'upi', icon: '📱', title: 'Online / Card Payment', desc: 'Visa, Mastercard, Genie, FriMi' },
+                  { id: 'card', icon: '💳', title: 'Credit / Debit Card', desc: 'Commercial Bank, Sampath, BOC, HNB' },
+                  { id: 'netbank', icon: '🏦', title: 'Direct Bank Transfer', desc: 'Online banking & bank deposit' },
                   { id: 'cod', icon: '💵', title: 'Cash on Delivery', desc: 'Pay when your groceries arrive' },
                 ].map((m) => (
                   <label
@@ -560,7 +570,7 @@ export default function CheckoutModal() {
                 fontWeight: 700,
               }}
             >
-              {step === 3 ? `Pay ₹${grandTotal.toFixed(2)} →` : 'Continue →'}
+              {step === 3 ? `Pay Rs. ${grandTotal.toFixed(2)} →` : 'Continue →'}
             </button>
           </div>
         )}
