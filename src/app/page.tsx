@@ -7,7 +7,6 @@ import HeroSlider from '@/components/HeroSlider';
 import Categories from '@/components/Categories';
 import DealsSection from '@/components/DealsSection';
 import ProductsSection from '@/components/ProductsSection';
-import ContactSection from '@/components/ContactSection';
 import Footer from '@/components/Footer';
 import { useStore } from '@/context/StoreContext';
 
@@ -388,8 +387,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-
-        <ContactSection />
       </main>
 
       <Footer />

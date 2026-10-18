@@ -357,9 +357,9 @@ export default function Header({ onSearch, onSelectCategory }: HeaderProps) {
               </a>
             </li>
             <li>
-              <a href="#contact" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/contact" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
                 Contact
-              </a>
+              </Link>
             </li>
           </ul>
         </div>
