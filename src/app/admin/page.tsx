@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { CATEGORIES } from '@/data/products';
-import { Product } from '@/types';
+import { Product, CustomerInquiry } from '@/types';
 
 interface AdminOrder {
   id: string;
@@ -53,11 +53,18 @@ export default function AdminDashboardPage() {
   const [rememberDevice, setRememberDevice] = useState(true);
   const [showPasscode, setShowPasscode] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'inventory' | 'customers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'inventory' | 'customers' | 'inquiries'>('overview');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [inquiries, setInquiries] = useState<CustomerInquiry[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingInquiries, setLoadingInquiries] = useState(true);
+
+  // Inquiries filtering & actions
+  const [inquirySearchQuery, setInquirySearchQuery] = useState('');
+  const [inquiryStatusFilter, setInquiryStatusFilter] = useState<'all' | 'New' | 'Replied' | 'Resolved'>('all');
+  const [updatingInquiryId, setUpdatingInquiryId] = useState<string | null>(null);
 
   // Orders filtering
   const [orderFilterStatus, setOrderFilterStatus] = useState<string>('all');
@@ -185,6 +192,90 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Fetch Customer Inquiries
+  const fetchInquiries = async () => {
+    setLoadingInquiries(true);
+    try {
+      const res = await fetch('/api/inquiries');
+      const data = await res.json();
+      let list: CustomerInquiry[] = (data && data.data && Array.isArray(data.data)) ? data.data : [];
+
+      if (typeof window !== 'undefined') {
+        try {
+          const local = localStorage.getItem('freshmart_customer_inquiries');
+          if (local) {
+            const localItems: CustomerInquiry[] = JSON.parse(local);
+            const existingIds = new Set(list.map((i) => i.id));
+            for (const item of localItems) {
+              if (!existingIds.has(item.id)) {
+                list.unshift(item);
+                existingIds.add(item.id);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      setInquiries(list);
+    } catch (err) {
+      console.error('Failed to fetch inquiries:', err);
+    } finally {
+      setLoadingInquiries(false);
+    }
+  };
+
+  // Update Customer Inquiry Status
+  const handleUpdateInquiryStatus = async (id: string, newStatus: 'New' | 'Replied' | 'Resolved') => {
+    setUpdatingInquiryId(id);
+    try {
+      await fetch('/api/inquiries', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      setInquiries((prev) =>
+        prev.map((inq) => (inq.id === id ? { ...inq, status: newStatus } : inq))
+      );
+      if (typeof window !== 'undefined') {
+        try {
+          const local = localStorage.getItem('freshmart_customer_inquiries');
+          if (local) {
+            const items = JSON.parse(local).map((i: any) =>
+              i.id === id ? { ...i, status: newStatus } : i
+            );
+            localStorage.setItem('freshmart_customer_inquiries', JSON.stringify(items));
+          }
+        } catch (_) {}
+      }
+      showToast(`Inquiry status updated to "${newStatus}"`);
+    } catch (err) {
+      showToast('Failed to update inquiry status');
+    } finally {
+      setUpdatingInquiryId(null);
+    }
+  };
+
+  // Delete Customer Inquiry
+  const handleDeleteInquiry = async (id: string) => {
+    if (!window.confirm('Delete this customer inquiry?')) return;
+    try {
+      await fetch(`/api/inquiries?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      setInquiries((prev) => prev.filter((inq) => inq.id !== id));
+      if (typeof window !== 'undefined') {
+        try {
+          const local = localStorage.getItem('freshmart_customer_inquiries');
+          if (local) {
+            const items = JSON.parse(local).filter((i: any) => i.id !== id);
+            localStorage.setItem('freshmart_customer_inquiries', JSON.stringify(items));
+          }
+        } catch (_) {}
+      }
+      showToast('Inquiry removed');
+    } catch (err) {
+      showToast('Failed to delete inquiry');
+    }
+  };
+
   // Verify saved owner session on mount
   useEffect(() => {
     try {
@@ -196,6 +287,7 @@ export default function AdminDashboardPage() {
         setIsAdminAuthenticated(true);
         fetchOrders();
         fetchProducts();
+        fetchInquiries();
       }
     } catch (e) {
       console.error('Session check error:', e);
@@ -227,6 +319,7 @@ export default function AdminDashboardPage() {
       showToast('Owner session authenticated. Welcome to Store Hub!');
       fetchOrders();
       fetchProducts();
+      fetchInquiries();
     } else {
       setAuthError('Access denied: Invalid business owner passcode.');
     }
@@ -1065,6 +1158,16 @@ export default function AdminDashboardPage() {
                   </svg>
                 ),
               },
+              {
+                id: 'inquiries',
+                label: `Customer Support & Inquiries (${inquiries.length})`,
+                badge: inquiries.filter((i) => i.status === 'New').length,
+                icon: (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                ),
+              },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1087,7 +1190,21 @@ export default function AdminDashboardPage() {
                 }}
               >
                 {tab.icon}
-                {tab.label}
+                <span>{tab.label}</span>
+                {Boolean((tab as any).badge && (tab as any).badge > 0) && (
+                  <span
+                    style={{
+                      background: '#16a34a',
+                      color: '#fff',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    {(tab as any).badge} new
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1185,6 +1302,36 @@ export default function AdminDashboardPage() {
                 </div>
                 <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
                   Spread across <strong>8 Aisles</strong>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setActiveTab('inquiries')}
+                style={{
+                  background: '#ffffff',
+                  padding: '22px',
+                  borderRadius: '16px',
+                  border: '1px solid rgba(15,23,42,0.08)',
+                  boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Customer Inquiries
+                  </span>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#0f172a', margin: '8px 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em' }}>
+                  {inquiries.length}
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  Unresolved messages: <strong style={{ color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{inquiries.filter((i) => i.status === 'New').length} new</strong>
                 </div>
               </div>
             </div>
@@ -1994,6 +2141,454 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ====================================================
+            TAB 5: CUSTOMER SUPPORT & INQUIRIES
+           ==================================================== */}
+        {activeTab === 'inquiries' && (
+          <div>
+            {/* Header + Actions */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '16px',
+                marginBottom: '20px',
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                  Customer Support & Inquiries
+                </h2>
+                <p style={{ fontSize: '0.86rem', color: '#64748b', marginTop: '2px' }}>
+                  Customer messages, order inquiries, and delivery feedback sent from the website contact page.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={fetchInquiries}
+                  disabled={loadingInquiries}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.84rem',
+                    fontWeight: 600,
+                    color: '#334155',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                  {loadingInquiries ? 'Refreshing...' : 'Refresh Feed'}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick KPI Stat Badges */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '22px' }}>
+              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Inquiries</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{inquiries.length}</div>
+              </div>
+              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700, textTransform: 'uppercase' }}>New Unread</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#15803d', marginTop: '4px' }}>
+                  {inquiries.filter((i) => i.status === 'New').length}
+                </div>
+              </div>
+              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.72rem', color: '#2563eb', fontWeight: 700, textTransform: 'uppercase' }}>Replied</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#2563eb', marginTop: '4px' }}>
+                  {inquiries.filter((i) => i.status === 'Replied').length}
+                </div>
+              </div>
+              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Resolved</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#64748b', marginTop: '4px' }}>
+                  {inquiries.filter((i) => i.status === 'Resolved').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div
+              style={{
+                background: '#ffffff',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                border: '1px solid rgba(15,23,42,0.08)',
+                boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
+                marginBottom: '20px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '14px',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              {/* Search Box */}
+              <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by customer name, email, phone, or keyword..."
+                  value={inquirySearchQuery}
+                  onChange={(e) => setInquirySearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px 9px 36px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.86rem',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+                {(['all', 'New', 'Replied', 'Resolved'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setInquiryStatusFilter(st)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      background: inquiryStatusFilter === st ? '#ffffff' : 'transparent',
+                      color: inquiryStatusFilter === st ? '#0f172a' : '#64748b',
+                      boxShadow: inquiryStatusFilter === st ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    }}
+                  >
+                    {st === 'all' ? 'All Messages' : st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Inquiries List */}
+            {inquiries.filter((inq) => {
+              const matchesStatus = inquiryStatusFilter === 'all' || inq.status === inquiryStatusFilter;
+              const q = inquirySearchQuery.toLowerCase().trim();
+              const matchesQuery =
+                !q ||
+                inq.name.toLowerCase().includes(q) ||
+                inq.email.toLowerCase().includes(q) ||
+                (inq.phone && inq.phone.toLowerCase().includes(q)) ||
+                (inq.subject && inq.subject.toLowerCase().includes(q)) ||
+                inq.message.toLowerCase().includes(q);
+              return matchesStatus && matchesQuery;
+            }).length === 0 ? (
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '60px 20px',
+                  borderRadius: '16px',
+                  textAlign: 'center',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f1f5f9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>No customer inquiries found</h3>
+                <p style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '4px' }}>
+                  {inquirySearchQuery || inquiryStatusFilter !== 'all'
+                    ? 'No messages match your search or filter criteria.'
+                    : 'Customer messages submitted via the storefront contact page will appear here automatically.'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {inquiries
+                  .filter((inq) => {
+                    const matchesStatus = inquiryStatusFilter === 'all' || inq.status === inquiryStatusFilter;
+                    const q = inquirySearchQuery.toLowerCase().trim();
+                    const matchesQuery =
+                      !q ||
+                      inq.name.toLowerCase().includes(q) ||
+                      inq.email.toLowerCase().includes(q) ||
+                      (inq.phone && inq.phone.toLowerCase().includes(q)) ||
+                      (inq.subject && inq.subject.toLowerCase().includes(q)) ||
+                      inq.message.toLowerCase().includes(q);
+                    return matchesStatus && matchesQuery;
+                  })
+                  .map((inq) => {
+                    const cleanPhone = (inq.phone || '').replace(/[^0-9]/g, '');
+                    const waNumber = cleanPhone.startsWith('0') ? `94${cleanPhone.slice(1)}` : cleanPhone;
+                    const waLink = waNumber
+                      ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${inq.name}, thank you for contacting FreshMart regarding "${inq.subject || 'your inquiry'}". How can we assist you today?`)}`
+                      : null;
+
+                    return (
+                      <div
+                        key={inq.id}
+                        style={{
+                          background: '#ffffff',
+                          borderRadius: '16px',
+                          border: inq.status === 'New' ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+                          boxShadow: inq.status === 'New' ? '0 4px 16px rgba(22, 163, 74, 0.08)' : '0 1px 3px rgba(0,0,0,0.03)',
+                          padding: '20px 24px',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {/* Top bar: Customer & Timestamp & Status */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                background: inq.status === 'New' ? '#dcfce7' : '#f1f5f9',
+                                color: inq.status === 'New' ? '#15803d' : '#475569',
+                                fontWeight: 700,
+                                fontSize: '0.95rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {inq.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <strong style={{ fontSize: '0.96rem', color: '#0f172a' }}>{inq.name}</strong>
+                                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>#{inq.id}</span>
+                              </div>
+                              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                                Received {new Date(inq.createdAt).toLocaleDateString('en-LK', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status Badge & Dropdown */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                padding: '3px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                background:
+                                  inq.status === 'New'
+                                    ? '#ecfdf5'
+                                    : inq.status === 'Replied'
+                                    ? '#eff6ff'
+                                    : '#f8fafc',
+                                color:
+                                  inq.status === 'New'
+                                    ? '#047857'
+                                    : inq.status === 'Replied'
+                                    ? '#1d4ed8'
+                                    : '#64748b',
+                                border:
+                                  inq.status === 'New'
+                                    ? '1px solid #a7f3d0'
+                                    : inq.status === 'Replied'
+                                    ? '1px solid #bfdbfe'
+                                    : '1px solid #e2e8f0',
+                              }}
+                            >
+                              {inq.status}
+                            </span>
+
+                            <select
+                              value={inq.status}
+                              disabled={updatingInquiryId === inq.id}
+                              onChange={(e) => handleUpdateInquiryStatus(inq.id, e.target.value as any)}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                                color: '#334155',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="New">Mark New</option>
+                              <option value="Replied">Mark Replied</option>
+                              <option value="Resolved">Mark Resolved</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Subject Badge */}
+                        <div style={{ marginBottom: '10px' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: '#f8fafc',
+                              border: '1px solid #e2e8f0',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: '#334155',
+                            }}
+                          >
+                            Subject: {inq.subject || 'General Inquiry'}
+                          </span>
+                        </div>
+
+                        {/* Customer Message Bubble */}
+                        <div
+                          style={{
+                            background: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            borderRadius: '12px',
+                            padding: '14px 16px',
+                            fontSize: '0.88rem',
+                            color: '#1e293b',
+                            lineHeight: 1.6,
+                            marginBottom: '14px',
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {inq.message}
+                        </div>
+
+                        {/* Action Toolbar */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '10px',
+                            paddingTop: '10px',
+                            borderTop: '1px solid #f1f5f9',
+                          }}
+                        >
+                          {/* Contact Details & Quick Reply Buttons */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {inq.phone && waLink && (
+                              <a
+                                href={waLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '6px 12px',
+                                  background: '#25D366',
+                                  color: '#ffffff',
+                                  borderRadius: '6px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  textDecoration: 'none',
+                                }}
+                              >
+                                <span>💬</span> WhatsApp ({inq.phone})
+                              </a>
+                            )}
+
+                            {inq.phone && (
+                              <a
+                                href={`tel:${inq.phone}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '6px 12px',
+                                  background: '#ecfdf5',
+                                  color: '#047857',
+                                  border: '1px solid #a7f3d0',
+                                  borderRadius: '6px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                }}
+                              >
+                                <span>📞</span> Call
+                              </a>
+                            )}
+
+                            <a
+                              href={`mailto:${inq.email}?subject=${encodeURIComponent(`Re: ${inq.subject || 'FreshMart Support'} - FreshMart Team`)}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '6px 12px',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                              }}
+                            >
+                              <span>✉️</span> Email ({inq.email})
+                            </a>
+                          </div>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => handleDeleteInquiry(inq.id)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '6px 10px',
+                              background: 'transparent',
+                              color: '#ef4444',
+                              border: '1px solid #fee2e2',
+                              borderRadius: '6px',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         )}
       </main>

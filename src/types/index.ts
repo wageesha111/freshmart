@@ -50,3 +50,14 @@ export interface Category {
   image: string;
   count: number;
 }
+
+export interface CustomerInquiry {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  subject?: string;
+  message: string;
+  createdAt: string;
+  status: 'New' | 'Replied' | 'Resolved';
+}

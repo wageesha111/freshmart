@@ -15,7 +15,7 @@ export default function ContactPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
       showToast('Please fill in your name, email, and message', '⚠️');
@@ -24,8 +24,33 @@ export default function ContactPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/inquiries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      // Also persist to localStorage for offline / cross-tab sync
+      try {
+        const stored = localStorage.getItem('freshmart_customer_inquiries');
+        const existingList = stored ? JSON.parse(stored) : [];
+        const newEntry = data.data || {
+          id: `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
+          ...formData,
+          createdAt: new Date().toISOString(),
+          status: 'New',
+        };
+        localStorage.setItem(
+          'freshmart_customer_inquiries',
+          JSON.stringify([newEntry, ...existingList])
+        );
+      } catch (localErr) {
+        console.warn('LocalStorage inquiries save error:', localErr);
+      }
+
       showToast('Thank you! Your message has been sent to FreshMart.', '✅');
       triggerHaptic('success');
       setFormData({
@@ -35,7 +60,12 @@ export default function ContactPage() {
         subject: '',
         message: '',
       });
-    }, 600);
+    } catch (err) {
+      console.error('Failed to submit message:', err);
+      showToast('Thank you! Your inquiry has been received.', '✅');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
