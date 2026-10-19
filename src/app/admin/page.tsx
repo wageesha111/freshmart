@@ -28,6 +28,13 @@ interface AdminOrder {
   }>;
 }
 
+interface RegisteredUser {
+  id: string;
+  name: string;
+  email: string;
+  created_at: string;
+}
+
 // Curated high-resolution supermarket product photos
 const PRODUCT_IMAGE_PRESETS = [
   { label: 'Fresh Apples', url: '/products/prod_1.jpg' },
@@ -57,9 +64,15 @@ export default function AdminDashboardPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<CustomerInquiry[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingInquiries, setLoadingInquiries] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // Customers filtering
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerFilterType, setCustomerFilterType] = useState<'all' | 'registered' | 'ordered' | 'new'>('all');
 
   // Inquiries filtering & actions
   const [inquirySearchQuery, setInquirySearchQuery] = useState('');
@@ -224,6 +237,22 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Fetch Registered Users
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setRegisteredUsers(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch registered users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   // Update Customer Inquiry Status
   const handleUpdateInquiryStatus = async (id: string, newStatus: 'New' | 'Replied' | 'Resolved') => {
     setUpdatingInquiryId(id);
@@ -288,6 +317,7 @@ export default function AdminDashboardPage() {
         fetchOrders();
         fetchProducts();
         fetchInquiries();
+        fetchUsers();
       }
     } catch (e) {
       console.error('Session check error:', e);
@@ -320,6 +350,7 @@ export default function AdminDashboardPage() {
       fetchOrders();
       fetchProducts();
       fetchInquiries();
+      fetchUsers();
     } else {
       setAuthError('Access denied: Invalid business owner passcode.');
     }
@@ -608,28 +639,105 @@ export default function AdminDashboardPage() {
     });
   }, [products, productCategoryFilter, productSearchQuery]);
 
-  // Unique Customers calculation
+  // Customer Directory calculation (aggregating registered users + live orders)
   const customerList = useMemo(() => {
-    const map = new Map<string, { email: string; name: string; phone: string; city: string; orderCount: number; totalSpent: number }>();
-    orders.forEach((o) => {
-      const email = o.userEmail || o.customerPhone || 'guest';
-      const existing = map.get(email) || {
-        email: o.userEmail || '—',
-        name: o.customerName || 'Customer',
-        phone: o.customerPhone || '—',
-        city: o.city || 'Local Area',
+    const map = new Map<
+      string,
+      {
+        id?: string;
+        email: string;
+        name: string;
+        phone: string;
+        city: string;
+        orderCount: number;
+        totalSpent: number;
+        isRegistered: boolean;
+        createdAt?: string;
+      }
+    >();
+
+    // 1. First add all registered user accounts from Supabase / database
+    registeredUsers.forEach((u) => {
+      const emailKey = (u.email || '').toLowerCase().trim();
+      const key = emailKey || u.id;
+      if (!key) return;
+
+      map.set(key, {
+        id: u.id,
+        email: u.email || '—',
+        name: u.name || 'Registered Member',
+        phone: '—',
+        city: 'Registered Member',
         orderCount: 0,
         totalSpent: 0,
-      };
+        isRegistered: true,
+        createdAt: u.created_at,
+      });
+    });
+
+    // 2. Aggregate live order data
+    orders.forEach((o) => {
+      const emailKey = (o.userEmail || '').toLowerCase().trim();
+      const phoneKey = (o.customerPhone || '').trim();
+      const guestKey = `guest-${o.id}`;
+
+      let existing = emailKey ? map.get(emailKey) : undefined;
+      if (!existing && phoneKey) existing = map.get(phoneKey);
+
+      if (!existing) {
+        existing = {
+          email: o.userEmail || '—',
+          name: o.customerName || 'Guest Buyer',
+          phone: o.customerPhone || '—',
+          city: o.city || 'Local Area',
+          orderCount: 0,
+          totalSpent: 0,
+          isRegistered: false,
+          createdAt: o.date,
+        };
+        map.set(emailKey || phoneKey || guestKey, existing);
+      }
+
       existing.orderCount += 1;
       existing.totalSpent += Number(o.total) || 0;
-      if (o.customerName && existing.name === 'Customer') existing.name = o.customerName;
-      if (o.customerPhone && existing.phone === '—') existing.phone = o.customerPhone;
-      if (o.city && existing.city === 'Local Area') existing.city = o.city;
-      map.set(email, existing);
+      if (o.customerName && (!existing.name || existing.name === 'Registered Member' || existing.name === 'Guest Buyer' || existing.name === 'Customer')) {
+        existing.name = o.customerName;
+      }
+      if (o.customerPhone && existing.phone === '—') {
+        existing.phone = o.customerPhone;
+      }
+      if (o.city && (existing.city === 'Registered Member' || existing.city === 'Local Area')) {
+        existing.city = o.city;
+      }
     });
-    return Array.from(map.values());
-  }, [orders]);
+
+    // Sort: Accounts with orders first, then recent signups
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.orderCount !== a.orderCount) {
+        return b.orderCount - a.orderCount;
+      }
+      return b.totalSpent - a.totalSpent;
+    });
+  }, [registeredUsers, orders]);
+
+  // Filtered customer list for search and status tabs
+  const filteredCustomerList = useMemo(() => {
+    return customerList.filter((c) => {
+      if (customerFilterType === 'registered' && !c.isRegistered) return false;
+      if (customerFilterType === 'ordered' && c.orderCount === 0) return false;
+      if (customerFilterType === 'new' && (!c.isRegistered || c.orderCount > 0)) return false;
+
+      if (customerSearchQuery.trim()) {
+        const q = customerSearchQuery.toLowerCase().trim();
+        const matchName = (c.name || '').toLowerCase().includes(q);
+        const matchEmail = (c.email || '').toLowerCase().includes(q);
+        const matchPhone = (c.phone || '').toLowerCase().includes(q);
+        const matchCity = (c.city || '').toLowerCase().includes(q);
+        return matchName || matchEmail || matchPhone || matchCity;
+      }
+      return true;
+    });
+  }, [customerList, customerFilterType, customerSearchQuery]);
 
   // Metrics
   const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
@@ -1035,7 +1143,9 @@ export default function AdminDashboardPage() {
               onClick={() => {
                 fetchOrders();
                 fetchProducts();
-                showToast('Catalog & orders synchronized');
+                fetchInquiries();
+                fetchUsers();
+                showToast('Store data synchronized');
               }}
               style={{
                 padding: '8px 14px',
@@ -2080,62 +2190,421 @@ export default function AdminDashboardPage() {
             TAB 4: CUSTOMERS DIRECTORY
            ==================================================== */}
         {activeTab === 'customers' && (
-          <div>
-            <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.03)' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                    Registered Customers & Delivery Accounts bla
-                  </h3>
-                  <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                    Extracted from live orders and checkout sessions
-                  </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Customer Directory Header & Quick Stat Cards */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '14px',
+              }}
+            >
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '16px 20px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Total Customer Accounts
                 </div>
-                <span style={{ background: '#f8fafc', padding: '4px 10px', borderRadius: '7px', fontSize: '0.78rem', fontWeight: 600, color: '#334155', border: '1px solid #e2e8f0' }}>
-                  {customerList.length} Accounts
-                </span>
+                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: '4px 0 2px', fontVariantNumeric: 'tabular-nums' }}>
+                  {customerList.length}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  All registered members & guest buyers
+                </div>
               </div>
 
-              {customerList.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', fontSize: '0.88rem' }}>
-                  No customer profiles registered yet.
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '16px 20px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Registered Members
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1d4ed8', margin: '4px 0 2px', fontVariantNumeric: 'tabular-nums' }}>
+                  {customerList.filter((c) => c.isRegistered).length}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Signed up via website store accounts
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '16px 20px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  New Signups (0 Orders)
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#d97706', margin: '4px 0 2px', fontVariantNumeric: 'tabular-nums' }}>
+                  {customerList.filter((c) => c.isRegistered && c.orderCount === 0).length}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Registered users ready to place first order
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '16px 20px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Active Ordering Buyers
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#15803d', margin: '4px 0 2px', fontVariantNumeric: 'tabular-nums' }}>
+                  {customerList.filter((c) => c.orderCount > 0).length}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Customers with 1+ checkout orders
+                </div>
+              </div>
+            </div>
+
+            {/* Main Table Container */}
+            <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.03)' }}>
+              {/* Header Title + Controls */}
+              <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.01em' }}>
+                      Registered Customers & Member Directory
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0 0' }}>
+                      Synchronized live from Supabase user accounts and store orders
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      fetchUsers();
+                      fetchOrders();
+                      showToast('Customer directory refreshed');
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 4 23 10 17 10" />
+                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                    </svg>
+                    Refresh Directory
+                  </button>
+                </div>
+
+                {/* Search Bar + Filter Tabs */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ position: 'relative', flex: '1', minWidth: '240px', maxWidth: '420px' }}>
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#94a3b8"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search by customer name, email, city..."
+                      value={customerSearchQuery}
+                      onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 14px 9px 36px',
+                        borderRadius: '9px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.84rem',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        background: '#f8fafc',
+                        color: '#0f172a',
+                      }}
+                    />
+                    {customerSearchQuery && (
+                      <button
+                        onClick={() => setCustomerSearchQuery('')}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#94a3b8',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all', label: `All (${customerList.length})` },
+                      { id: 'registered', label: `Members (${customerList.filter((c) => c.isRegistered).length})` },
+                      { id: 'new', label: `New Signups (${customerList.filter((c) => c.isRegistered && c.orderCount === 0).length})` },
+                      { id: 'ordered', label: `With Orders (${customerList.filter((c) => c.orderCount > 0).length})` },
+                    ].map((tab) => {
+                      const isActive = customerFilterType === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setCustomerFilterType(tab.id as any)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: isActive ? '1px solid #0f172a' : '1px solid #e2e8f0',
+                            background: isActive ? '#0f172a' : '#ffffff',
+                            color: isActive ? '#ffffff' : '#475569',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Table / Empty State */}
+              {filteredCustomerList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '50px 20px', color: '#64748b', fontSize: '0.88rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', marginBottom: '6px' }}>
+                    No customer accounts match your criteria
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.82rem' }}>
+                    {customerSearchQuery ? `No results found for "${customerSearchQuery}"` : 'No registered users or store orders available yet.'}
+                  </p>
+                  {customerSearchQuery && (
+                    <button
+                      onClick={() => setCustomerSearchQuery('')}
+                      style={{
+                        marginTop: '14px',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        background: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Clear search filter
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontWeight: 600, fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        <th style={{ padding: '12px 18px' }}>Customer Name</th>
+                        <th style={{ padding: '12px 18px' }}>Customer Account</th>
+                        <th style={{ padding: '12px 14px' }}>Status</th>
                         <th style={{ padding: '12px 16px' }}>Email</th>
                         <th style={{ padding: '12px 16px' }}>Phone</th>
-                        <th style={{ padding: '12px 16px' }}>Primary City</th>
-                        <th style={{ padding: '12px 16px' }}>Orders Placed</th>
+                        <th style={{ padding: '12px 16px' }}>Delivery City</th>
+                        <th style={{ padding: '12px 16px' }}>Orders</th>
                         <th style={{ padding: '12px 18px', textAlign: 'right' }}>Total Spend</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {customerList.map((c, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '12px 18px', fontWeight: 600, color: '#0f172a' }}>
-                            {c.name}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#334155' }}>
-                            {c.email}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#64748b' }}>
-                            {c.phone}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#64748b' }}>
-                            {c.city}
-                          </td>
-                          <td style={{ padding: '12px 16px', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                            {c.orderCount}
-                          </td>
-                          <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 700, color: '#15803d', fontVariantNumeric: 'tabular-nums' }}>
-                            Rs. {c.totalSpent.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredCustomerList.map((c, i) => {
+                        const initial = (c.name || 'C').charAt(0).toUpperCase();
+                        const isNewSignup = c.isRegistered && c.orderCount === 0;
+
+                        return (
+                          <tr
+                            key={c.id || c.email || i}
+                            style={{
+                              borderBottom: '1px solid #f1f5f9',
+                              background: isNewSignup ? '#fbfcfe' : 'transparent',
+                            }}
+                          >
+                            {/* Customer Profile + Initial */}
+                            <td style={{ padding: '12px 18px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div
+                                  style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    background: c.isRegistered ? '#e0e7ff' : '#f1f5f9',
+                                    color: c.isRegistered ? '#3730a3' : '#475569',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 700,
+                                    fontSize: '0.82rem',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {initial}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.88rem' }}>
+                                    {c.name}
+                                  </div>
+                                  {c.createdAt && (
+                                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                                      Joined {new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Status Badge */}
+                            <td style={{ padding: '12px 14px' }}>
+                              {c.isRegistered ? (
+                                c.orderCount > 0 ? (
+                                  <span
+                                    style={{
+                                      background: '#f0fdf4',
+                                      color: '#15803d',
+                                      border: '1px solid #bbf7d0',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Active Member
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      border: '1px solid #bfdbfe',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    New Signup
+                                  </span>
+                                )
+                              ) : (
+                                <span
+                                  style={{
+                                    background: '#f8fafc',
+                                    color: '#64748b',
+                                    border: '1px solid #e2e8f0',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Guest Buyer
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Email */}
+                            <td style={{ padding: '12px 16px', color: '#334155', fontVariantNumeric: 'tabular-nums' }}>
+                              {c.email !== '—' ? (
+                                <a
+                                  href={`mailto:${c.email}`}
+                                  style={{ color: '#0284c7', textDecoration: 'none' }}
+                                  title={`Email ${c.name}`}
+                                >
+                                  {c.email}
+                                </a>
+                              ) : (
+                                <span style={{ color: '#94a3b8' }}>—</span>
+                              )}
+                            </td>
+
+                            {/* Phone */}
+                            <td style={{ padding: '12px 16px', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+                              {c.phone !== '—' ? (
+                                <a
+                                  href={`tel:${c.phone}`}
+                                  style={{ color: '#475569', textDecoration: 'none' }}
+                                >
+                                  {c.phone}
+                                </a>
+                              ) : (
+                                <span style={{ color: '#94a3b8' }}>—</span>
+                              )}
+                            </td>
+
+                            {/* Primary City */}
+                            <td style={{ padding: '12px 16px', color: '#475569' }}>
+                              <span style={{ fontSize: '0.82rem' }}>{c.city}</span>
+                            </td>
+
+                            {/* Orders Placed */}
+                            <td style={{ padding: '12px 16px' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  background: c.orderCount > 0 ? '#f1f5f9' : '#f8fafc',
+                                  fontWeight: 700,
+                                  color: c.orderCount > 0 ? '#0f172a' : '#94a3b8',
+                                  fontVariantNumeric: 'tabular-nums',
+                                  fontSize: '0.82rem',
+                                }}
+                              >
+                                {c.orderCount} {c.orderCount === 1 ? 'order' : 'orders'}
+                              </span>
+                            </td>
+
+                            {/* Total Spend */}
+                            <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 700, color: c.totalSpent > 0 ? '#15803d' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                              Rs. {c.totalSpent.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
