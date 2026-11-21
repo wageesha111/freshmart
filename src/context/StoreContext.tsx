@@ -88,6 +88,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const storedUser = localStorage.getItem('freshmart-user');
       if (storedUser) setUser(JSON.parse(storedUser));
 
+      // The server session cookie is the source of truth for who is signed in
+      fetch('/api/auth/me')
+        .then((res) => res.json())
+        .then((resData) => {
+          if (resData.success) setUser(resData.data || null);
+        })
+        .catch(() => {});
+
       // Clear legacy global un-scoped orders key
       localStorage.removeItem('freshmart-orders');
     } catch (e) {
@@ -123,10 +131,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 2. Fetch user's own orders from database
-      fetch(`/api/orders?email=${encodeURIComponent(user.email.toLowerCase().trim())}`)
-        .then((res) => res.json())
+      fetch('/api/orders')
+        .then((res) => {
+          if (res.status === 401) {
+            // Session expired on the server
+            setUser(null);
+            return null;
+          }
+          return res.json();
+        })
         .then((resData) => {
-          if (resData.success && Array.isArray(resData.data)) {
+          if (resData && resData.success && Array.isArray(resData.data)) {
             setOrders(resData.data);
             localStorage.setItem(userOrdersKey, JSON.stringify(resData.data));
           }
@@ -228,6 +243,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
     setOrders([]);
     showToast('Signed out successfully', '👋');
@@ -237,27 +253,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setOrders((prev) => [order, ...prev]);
     triggerHaptic('success');
 
-    // Persist to Supabase backend database via API route
+    // Save via API. The server recalculates prices/totals from the catalogue,
+    // so we replace the local copy with what the server returns.
     fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: order.id,
-        total: order.total,
         slot: order.slot,
-        items: order.items,
-        userEmail: user?.email,
+        items: order.items.map((i) => ({ id: i.id, qty: i.qty })),
+        promoCode: order.promoCode,
         customerName: order.address?.firstName
           ? `${order.address.firstName} ${order.address.lastName || ''}`.trim()
           : user?.name,
         customerPhone: order.address?.phone,
         deliveryAddress: order.address?.street,
         city: order.address?.city,
-        state: order.address?.state,
         pincode: order.address?.pincode,
         paymentMethod: order.paymentMethod,
       }),
-    }).catch((err) => console.error('Failed to sync order with backend DB:', err));
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data.data) {
+          const saved: Order = { ...order, ...data.data };
+          setOrders((prev) => prev.map((o) => (o.id === order.id ? saved : o)));
+          setSelectedOrderForTracking((prev) => (prev && prev.id === order.id ? saved : prev));
+        } else {
+          setOrders((prev) => prev.filter((o) => o.id !== order.id));
+          showToast(data?.error || 'Could not place your order. Please try again.', '⚠️');
+          if (res.status === 401) setUser(null);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to save order:', err);
+        setOrders((prev) => prev.filter((o) => o.id !== order.id));
+        showToast('Network error: your order was not placed. Please try again.', '⚠️');
+      });
   };
 
   const updateOrderStatus = (orderId: string, status: string) => {

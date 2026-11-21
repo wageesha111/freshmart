@@ -75,46 +75,57 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable Row Level Security (RLS)
+-- 6. Customer Inquiries Table (contact form)
+CREATE TABLE IF NOT EXISTS inquiries (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  subject TEXT,
+  message TEXT NOT NULL,
+  status TEXT DEFAULT 'New',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================================================
+-- ROW LEVEL SECURITY
+-- The browser never talks to Supabase directly. All private data (users,
+-- orders, inquiries) is read/written ONLY by the Next.js API routes using the
+-- SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS. The public anon key can only
+-- READ the product catalogue and categories.
+-- ========================================================
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inquiries ENABLE ROW LEVEL SECURITY;
 
--- Permissive Policies for storefront access
+-- Remove the old permissive policies (safe to run on existing databases)
+DROP POLICY IF EXISTS "Anyone can insert orders" ON orders;
+DROP POLICY IF EXISTS "Anyone can view orders" ON orders;
+DROP POLICY IF EXISTS "Anyone can update orders" ON orders;
+DROP POLICY IF EXISTS "Anyone can delete orders" ON orders;
+DROP POLICY IF EXISTS "Anyone can insert order items" ON order_items;
+DROP POLICY IF EXISTS "Anyone can view order items" ON order_items;
+DROP POLICY IF EXISTS "Anyone can modify products" ON products;
+DROP POLICY IF EXISTS "Anyone can select users" ON users;
+DROP POLICY IF EXISTS "Anyone can insert users" ON users;
+
+-- Public, read-only catalogue
 DROP POLICY IF EXISTS "Public categories are viewable" ON categories;
 CREATE POLICY "Public categories are viewable" ON categories FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Public products are viewable" ON products;
 CREATE POLICY "Public products are viewable" ON products FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Anyone can insert orders" ON orders;
-CREATE POLICY "Anyone can insert orders" ON orders FOR INSERT WITH CHECK (true);
+-- No policies on users / orders / order_items / inquiries = no anon access at all.
 
-DROP POLICY IF EXISTS "Anyone can view orders" ON orders;
-CREATE POLICY "Anyone can view orders" ON orders FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Anyone can update orders" ON orders;
-CREATE POLICY "Anyone can update orders" ON orders FOR UPDATE USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Anyone can delete orders" ON orders;
-CREATE POLICY "Anyone can delete orders" ON orders FOR DELETE USING (true);
-
-DROP POLICY IF EXISTS "Anyone can insert order items" ON order_items;
-CREATE POLICY "Anyone can insert order items" ON order_items FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Anyone can view order items" ON order_items;
-CREATE POLICY "Anyone can view order items" ON order_items FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Anyone can modify products" ON products;
-CREATE POLICY "Anyone can modify products" ON products FOR ALL USING (true);
-
-DROP POLICY IF EXISTS "Anyone can select users" ON users;
-CREATE POLICY "Anyone can select users" ON users FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Anyone can insert users" ON users;
-CREATE POLICY "Anyone can insert users" ON users FOR INSERT WITH CHECK (true);
+-- Passwords are stored as scrypt hashes by the app ("scrypt$salt$hash").
+-- Accounts created before this change still hold plain-text passwords; they are
+-- upgraded to a hash automatically the next time that user signs in.
+-- To see how many are still plain text:
+--   SELECT count(*) FROM users WHERE password NOT LIKE 'scrypt$%';
 
 -- ========================================================
 -- SEED DATA

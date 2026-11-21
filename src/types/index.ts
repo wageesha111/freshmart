@@ -40,6 +40,7 @@ export interface Order {
   };
   paymentMethod?: string;
   promoDiscount?: number;
+  promoCode?: string;
   deliveryFee?: number;
 }
 

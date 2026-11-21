@@ -1,111 +1,84 @@
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { randomUUID } from 'crypto';
+import { supabaseAdmin, useMemoryFallback, MISSING_SERVICE_KEY_ERROR } from '@/lib/supabase';
 import { inMemoryUsers } from '@/lib/auth-store';
+import { hashPassword } from '@/lib/password';
+import { setCustomerSession } from '@/lib/session';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, email, password } = body;
+    const body = await request.json().catch(() => ({}));
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
 
-    if (!email || !password || !name) {
+    if (!name || !email || !password) {
       return NextResponse.json(
         { success: false, error: 'Full name, email, and password are required' },
         { status: 400 }
       );
     }
-
-    const cleanEmail = email.toLowerCase().trim();
-
-    // Check Supabase if configured
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data: existingUser } = await supabase
-          .from('users')
-          .select('id, email')
-          .eq('email', cleanEmail)
-          .maybeSingle();
-
-        if (existingUser) {
-          return NextResponse.json(
-            {
-              success: false,
-              code: 'USER_EXISTS',
-              error: 'An account with this email already exists. Please sign in instead.',
-            },
-            { status: 409 }
-          );
-        }
-
-        const newId = `u-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        const { data: inserted, error: insertError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: newId,
-              name: name.trim(),
-              email: cleanEmail,
-              password: password,
-            },
-          ])
-          .select('id, name, email')
-          .single();
-
-        if (!insertError && inserted) {
-          inMemoryUsers.set(cleanEmail, {
-            id: newId,
-            name: name.trim(),
-            email: cleanEmail,
-            password: password,
-          });
-
-          return NextResponse.json(
-            {
-              success: true,
-              data: { id: inserted.id, name: inserted.name, email: inserted.email },
-              message: 'Account created successfully!',
-            },
-            { status: 201 }
-          );
-        }
-      } catch (err) {
-        console.warn('Supabase users check warning, proceeding with memory store:', err);
-      }
+    if (!EMAIL_RE.test(email) || email.length > 254) {
+      return NextResponse.json({ success: false, error: 'Please enter a valid email address' }, { status: 400 });
     }
-
-    // Memory / Local fallback
-    if (inMemoryUsers.has(cleanEmail)) {
+    if (password.length < 8 || password.length > 200) {
       return NextResponse.json(
-        {
-          success: false,
-          code: 'USER_EXISTS',
-          error: 'An account with this email already exists. Please sign in instead.',
-        },
-        { status: 409 }
+        { success: false, error: 'Password must be at least 8 characters long' },
+        { status: 400 }
       );
     }
+    if (name.length > 100) {
+      return NextResponse.json({ success: false, error: 'Name is too long' }, { status: 400 });
+    }
 
-    const newId = `u-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const newUser = {
-      id: newId,
-      name: name.trim(),
-      email: cleanEmail,
-      password: password,
-    };
-    inMemoryUsers.set(cleanEmail, newUser);
-
-    return NextResponse.json(
+    const exists = NextResponse.json(
       {
-        success: true,
-        data: { id: newUser.id, name: newUser.name, email: newUser.email },
-        message: 'Account created successfully!',
+        success: false,
+        code: 'USER_EXISTS',
+        error: 'An account with this email already exists. Please sign in instead.',
       },
-      { status: 201 }
+      { status: 409 }
+    );
+
+    const newUser = { id: `u-${randomUUID()}`, name, email };
+    const passwordHash = await hashPassword(password);
+
+    if (supabaseAdmin) {
+      const { data: existing, error: lookupError } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing) return exists;
+
+      const { error: insertError } = await supabaseAdmin
+        .from('users')
+        .insert([{ ...newUser, password: passwordHash }]);
+
+      if (insertError) {
+        // 23505 = unique violation (race with another sign-up)
+        if ((insertError as any).code === '23505') return exists;
+        throw insertError;
+      }
+    } else if (useMemoryFallback) {
+      if (inMemoryUsers.has(email)) return exists;
+      inMemoryUsers.set(email, { ...newUser, passwordHash });
+    } else {
+      return NextResponse.json({ success: false, error: MISSING_SERVICE_KEY_ERROR }, { status: 500 });
+    }
+
+    return setCustomerSession(
+      NextResponse.json(
+        { success: true, data: { name, email }, message: 'Account created successfully!' },
+        { status: 201 }
+      ),
+      newUser
     );
   } catch (error: any) {
     console.error('API /api/auth/register error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Registration failed. Please try again.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Registration failed. Please try again.' }, { status: 500 });
   }
 }

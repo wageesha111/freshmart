@@ -1,50 +1,37 @@
 import { NextResponse } from 'next/server';
-import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseAdmin, useMemoryFallback, MISSING_SERVICE_KEY_ERROR } from '@/lib/supabase';
 import { inMemoryUsers } from '@/lib/auth-store';
+import { forbiddenAdmin, isAdmin } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  try {
-    const client = supabaseAdmin || supabase;
+// GET /api/users -> registered customers (admin only). Never returns passwords.
+export async function GET(request: Request) {
+  if (!isAdmin(request)) return forbiddenAdmin();
 
-    if (isSupabaseConfigured && client) {
-      const { data, error } = await client
+  try {
+    if (supabaseAdmin) {
+      const { data, error } = await supabaseAdmin
         .from('users')
         .select('id, name, email, created_at')
         .order('created_at', { ascending: false });
-
-      if (!error && data) {
-        return NextResponse.json({
-          success: true,
-          count: data.length,
-          data,
-        });
-      }
-
-      if (error) {
-        console.warn('Supabase users query warning:', error);
-      }
+      if (error) throw error;
+      return NextResponse.json({ success: true, count: data.length, data });
     }
 
-    // Fallback to in-memory store
-    const fallbackList = Array.from(inMemoryUsers.values()).map((u) => ({
+    if (!useMemoryFallback) {
+      return NextResponse.json({ success: false, error: MISSING_SERVICE_KEY_ERROR }, { status: 500 });
+    }
+
+    const list = Array.from(inMemoryUsers.values()).map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email,
       created_at: new Date().toISOString(),
     }));
-
-    return NextResponse.json({
-      success: true,
-      count: fallbackList.length,
-      data: fallbackList,
-    });
+    return NextResponse.json({ success: true, count: list.length, data: list });
   } catch (err: any) {
     console.error('Error fetching users:', err);
-    return NextResponse.json(
-      { success: false, error: err.message || 'Failed to fetch users' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Failed to fetch users' }, { status: 500 });
   }
 }

@@ -1,30 +1,26 @@
-// Global in-memory users map for fallback & local testing
+// In-memory users store, used ONLY when Supabase is not configured (local demo mode).
+// Passwords are stored as scrypt hashes (see lib/password.ts), never in plain text.
 export interface AuthUserRecord {
   id: string;
   name: string;
   email: string;
-  password: string;
+  passwordHash: string;
 }
 
 export const inMemoryUsers: Map<string, AuthUserRecord> =
-  (global as any).__freshmart_users || new Map();
-(global as any).__freshmart_users = inMemoryUsers;
+  (globalThis as any).__freshmart_users || new Map();
+(globalThis as any).__freshmart_users = inMemoryUsers;
 
-// Seed demo profiles if not already present
-if (!inMemoryUsers.has('rahul@example.com')) {
-  inMemoryUsers.set('rahul@example.com', {
-    id: 'u-demo-1',
-    name: 'Rahul Sharma',
-    email: 'rahul@example.com',
-    password: 'password123',
-  });
-}
+/**
+ * Demo profiles for the "Quick Demo" buttons on the sign-in page.
+ * They log in via /api/auth/demo (no password), which is only enabled outside
+ * production or when ENABLE_DEMO_LOGIN=true.
+ */
+export const DEMO_USERS = [
+  { id: 'u-demo-1', name: 'Kasun Perera', email: 'kasun@example.com' },
+  { id: 'u-demo-2', name: 'Nimali Fernando', email: 'nimali@example.com' },
+] as const;
 
-if (!inMemoryUsers.has('priya@example.com')) {
-  inMemoryUsers.set('priya@example.com', {
-    id: 'u-demo-2',
-    name: 'Priya Patel',
-    email: 'priya@example.com',
-    password: 'password123',
-  });
+export function isDemoLoginEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' || process.env.ENABLE_DEMO_LOGIN === 'true';
 }

@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
-import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured, MISSING_SERVICE_KEY_ERROR } from '@/lib/supabase';
+import { forbiddenAdmin, isAdmin } from '@/lib/session';
+
+function adminGuard(request: Request) {
+  if (!isAdmin(request)) return forbiddenAdmin();
+  if (isSupabaseConfigured && !supabaseAdmin) {
+    return NextResponse.json({ success: false, error: MISSING_SERVICE_KEY_ERROR }, { status: 500 });
+  }
+  return null;
+}
 import { getAllStoreProducts, updateStoreProduct, deleteStoreProduct } from '@/lib/product-store';
 import { Product } from '@/types';
 
@@ -54,6 +63,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const denied = adminGuard(request);
+  if (denied) return denied;
+
   try {
     const id = parseInt(params.id, 10);
     if (isNaN(id)) {
@@ -66,6 +78,9 @@ export async function PATCH(
     const updates: Partial<Product> = {};
     if (body.name !== undefined) updates.name = body.name;
     if (body.category !== undefined) updates.category = body.category;
+    if (body.price !== undefined && !(Number(body.price) > 0)) {
+      return NextResponse.json({ success: false, error: 'Price must be a positive number' }, { status: 400 });
+    }
     if (body.price !== undefined) updates.price = Number(body.price);
     if (body.originalPrice !== undefined) updates.originalPrice = Number(body.originalPrice);
     if (body.original_price !== undefined) updates.originalPrice = Number(body.original_price);
@@ -78,8 +93,8 @@ export async function PATCH(
     const updated = updateStoreProduct(id, updates);
 
     // 2. Attempt Supabase update
-    const client = supabaseAdmin || supabase;
-    if (isSupabaseConfigured && client) {
+    const client = supabaseAdmin;
+    if (client) {
       try {
         const updateData: any = {};
         if (body.price !== undefined) updateData.price = Number(body.price);
@@ -109,6 +124,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const denied = adminGuard(request);
+  if (denied) return denied;
+
   try {
     const id = parseInt(params.id, 10);
     if (isNaN(id)) {
@@ -117,8 +135,8 @@ export async function DELETE(
 
     deleteStoreProduct(id);
 
-    const client = supabaseAdmin || supabase;
-    if (isSupabaseConfigured && client) {
+    const client = supabaseAdmin;
+    if (client) {
       try {
         await client.from('products').delete().eq('id', id);
       } catch (err: any) {
