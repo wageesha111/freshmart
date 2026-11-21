@@ -24,19 +24,37 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Database Setup (Supabase)
-FreshMart uses **Supabase** (PostgreSQL) with the official `@supabase/supabase-js` SDK.
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Go to **SQL Editor** in your Supabase dashboard and paste the contents of [`supabase/schema.sql`](file:///c:/Users/Admin/.gemini/antigravity-ide/scratch/freshmart/supabase/schema.sql), then click **Run**. This creates the tables (`categories`, `products`, `orders`, `order_items`), configures Row Level Security (RLS), and seeds initial products & categories.
-3. In your Supabase dashboard, go to **Project Settings** -> **API**, and copy your **Project URL** and **anon/public key**.
-4. Create a `.env` file in the project root:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
-   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-public-key"
-   ```
-*(Note: If no Supabase credentials are provided, FreshMart runs with seamless local fallback so you can develop and test immediately offline).*
+### 4. Environment Variables
+Copy `.env.example` to `.env.local` and fill it in:
 
-### 5. Build for Production
+| Variable | Needed for | Notes |
+|---|---|---|
+| `SESSION_SECRET` | Production | Random string, 32+ characters. Signs the login cookies. |
+| `ADMIN_PASSWORD` | Admin dashboard | Passcode for `/admin`. Without it the admin login is disabled. |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Optional. Without them the app runs in local demo mode. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase | **Required** when Supabase is used. Server-only, never prefix with `NEXT_PUBLIC_`. |
+| `ENABLE_DEMO_LOGIN` | Optional | Set to `true` to keep the one-click demo profiles in production. |
+
+Generate a session secret with:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+*(If no Supabase credentials are set, FreshMart runs on in-memory data so you can try it immediately. Data resets when the server restarts.)*
+
+### 5. Database Setup (Supabase, optional)
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. This creates the tables, locks down Row Level Security and seeds the products and categories. It is safe to run again on an existing database.
+3. In **Project Settings → API**, copy the **Project URL**, the **anon key** and the **service_role key** into `.env.local`.
+
+### 🔒 Security Model
+- The browser never talks to Supabase directly. All customer data goes through the Next.js API routes using the service role key on the server.
+- Passwords are hashed with scrypt. Older plain-text passwords are upgraded automatically on the user's next sign-in.
+- Customer and admin sessions are signed, `httpOnly` cookies. `/admin` and its API routes (orders, customers, products, uploads, inquiries) require the admin session.
+- Order totals, delivery fees and promo discounts are recalculated on the server from the product catalogue.
+- Product image uploads are admin-only, limited to JPG/PNG/WEBP/GIF up to 5 MB, and stored in Supabase Storage (`product-images` bucket) in production.
+
+### 6. Build for Production
 ```bash
 npm run build
 npm start

@@ -172,8 +172,23 @@ function AuthForm() {
     }
   };
 
-  const handleDemoLogin = (demoName: string, demoEmail: string) => {
-    handleSuccessfulAuth({ name: demoName, email: demoEmail });
+  const handleDemoLogin = async (demoEmail: string) => {
+    try {
+      const res = await fetch('/api/auth/demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: demoEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        handleSuccessfulAuth(data.data);
+      } else {
+        triggerHaptic('error');
+        showToast(data.error || 'Demo login is not available', '⚠️');
+      }
+    } catch {
+      showToast('Network error. Please try again.', '⚠️');
+    }
   };
 
   return (
@@ -292,7 +307,7 @@ function AuthForm() {
               <input
                 ref={nameInputRef}
                 type="text"
-                placeholder="Rahul Sharma"
+                placeholder="Kasun Perera"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -376,7 +391,7 @@ function AuthForm() {
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
             <button
               type="button"
-              onClick={() => handleDemoLogin('Rahul Sharma', 'rahul@example.com')}
+              onClick={() => handleDemoLogin('kasun@example.com')}
               style={{
                 padding: '6px 12px',
                 background: 'var(--green-100)',
@@ -388,11 +403,11 @@ function AuthForm() {
                 cursor: 'pointer',
               }}
             >
-              Rahul Sharma
+              Kasun Perera
             </button>
             <button
               type="button"
-              onClick={() => handleDemoLogin('Priya Patel', 'priya@example.com')}
+              onClick={() => handleDemoLogin('nimali@example.com')}
               style={{
                 padding: '6px 12px',
                 background: 'var(--green-100)',
@@ -404,7 +419,7 @@ function AuthForm() {
                 cursor: 'pointer',
               }}
             >
-              Priya Patel
+              Nimali Fernando
             </button>
           </div>
         </div>

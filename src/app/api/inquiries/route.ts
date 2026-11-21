@@ -1,5 +1,9 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { forbiddenAdmin, isAdmin } from '@/lib/session';
+
+export const dynamic = 'force-dynamic';
 import { CustomerInquiry } from '@/types';
 
 // In-memory fallback inquiries store for local dev and serverless continuity
@@ -26,10 +30,12 @@ let inMemoryInquiries: CustomerInquiry[] = [
   },
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAdmin(request)) return forbiddenAdmin();
+
   try {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
+    if (supabaseAdmin) {
+      const { data, error } = await supabaseAdmin
         .from('inquiries')
         .select('*')
         .order('created_at', { ascending: false });
@@ -77,12 +83,12 @@ export async function POST(request: Request) {
     }
 
     const newInquiry: CustomerInquiry = {
-      id: `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: String(name).trim(),
-      email: String(email).trim().toLowerCase(),
-      phone: phone ? String(phone).trim() : '',
-      subject: subject ? String(subject).trim() : 'Website Customer Inquiry',
-      message: String(message).trim(),
+      id: `INQ-${randomUUID().slice(0, 8).toUpperCase()}`,
+      name: String(name).trim().slice(0, 100),
+      email: String(email).trim().toLowerCase().slice(0, 254),
+      phone: phone ? String(phone).trim().slice(0, 30) : '',
+      subject: subject ? String(subject).trim().slice(0, 150) : 'Website Customer Inquiry',
+      message: String(message).trim().slice(0, 5000),
       createdAt: new Date().toISOString(),
       status: 'New',
     };
@@ -91,9 +97,9 @@ export async function POST(request: Request) {
     inMemoryInquiries.unshift(newInquiry);
 
     // If Supabase is available, sync to DB
-    if (isSupabaseConfigured && supabase) {
+    if (supabaseAdmin) {
       try {
-        await supabase.from('inquiries').insert([
+        await supabaseAdmin.from('inquiries').insert([
           {
             id: newInquiry.id,
             name: newInquiry.name,
@@ -114,13 +120,15 @@ export async function POST(request: Request) {
   } catch (err: any) {
     console.error('Error saving inquiry:', err);
     return NextResponse.json(
-      { success: false, error: err.message || 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
 export async function PATCH(request: Request) {
+  if (!isAdmin(request)) return forbiddenAdmin();
+
   try {
     const body = await request.json();
     const { id, status } = body;
@@ -136,9 +144,9 @@ export async function PATCH(request: Request) {
       inq.id === id ? { ...inq, status } : inq
     );
 
-    if (isSupabaseConfigured && supabase) {
+    if (supabaseAdmin) {
       try {
-        await supabase.from('inquiries').update({ status }).eq('id', id);
+        await supabaseAdmin.from('inquiries').update({ status }).eq('id', id);
       } catch (dbErr) {
         console.warn('Could not update inquiry status in Supabase:', dbErr);
       }
@@ -148,13 +156,15 @@ export async function PATCH(request: Request) {
   } catch (err: any) {
     console.error('Error updating inquiry status:', err);
     return NextResponse.json(
-      { success: false, error: err.message || 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
 export async function DELETE(request: Request) {
+  if (!isAdmin(request)) return forbiddenAdmin();
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -165,9 +175,9 @@ export async function DELETE(request: Request) {
 
     inMemoryInquiries = inMemoryInquiries.filter((inq) => inq.id !== id);
 
-    if (isSupabaseConfigured && supabase) {
+    if (supabaseAdmin) {
       try {
-        await supabase.from('inquiries').delete().eq('id', id);
+        await supabaseAdmin.from('inquiries').delete().eq('id', id);
       } catch (dbErr) {
         console.warn('Could not delete inquiry in Supabase:', dbErr);
       }
@@ -177,7 +187,7 @@ export async function DELETE(request: Request) {
   } catch (err: any) {
     console.error('Error deleting inquiry:', err);
     return NextResponse.json(
-      { success: false, error: err.message || 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }

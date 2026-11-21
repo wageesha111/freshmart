@@ -41,7 +41,7 @@ export default function OrderTrackingModal() {
     let isMounted = true;
     const pollStatus = async () => {
       try {
-        const res = await fetch('/api/orders?admin=true');
+        const res = await fetch('/api/orders');
         const data = await res.json();
         if (data.success && Array.isArray(data.data) && isMounted) {
           const found = data.data.find((o: any) => o.id === orderId);
@@ -554,7 +554,7 @@ export default function OrderTrackingModal() {
                   <strong style={{ color: '#0f172a', display: 'block', marginBottom: '2px' }}>
                     Payment Method
                   </strong>
-                  <span>{order.paymentMethod || 'UPI / Instant Pay'}</span>
+                  <span>{order.paymentMethod || 'Cash on Delivery'}</span>
                 </div>
 
                 <div>

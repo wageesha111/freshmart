@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
-import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
-import { getAllStoreProducts, addStoreProduct } from '@/lib/product-store';
+import { supabaseAdmin, isSupabaseConfigured, MISSING_SERVICE_KEY_ERROR } from '@/lib/supabase';
+import { addStoreProduct } from '@/lib/product-store';
+import { getCatalog } from '@/lib/catalog';
+import { forbiddenAdmin, isAdmin } from '@/lib/session';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
@@ -9,36 +13,7 @@ export async function GET(request: Request) {
     const query = searchParams.get('query');
     const sort = searchParams.get('sort');
 
-    let list = getAllStoreProducts();
-
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.from('products').select('*');
-        if (!error && data && data.length > 0) {
-          const supabaseFormatted = data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            category: p.category,
-            price: Number(p.price),
-            originalPrice: Number(p.originalPrice ?? p.original_price ?? p.price),
-            discount: Number(p.discount || 0),
-            rating: Number(p.rating || 4.8),
-            reviews: Number(p.reviews || 0),
-            emoji: p.emoji || '🥬',
-            image: p.image || '/products/prod_1.jpg',
-            badge: p.badge || null,
-            unit: p.unit || '1 unit',
-          }));
-
-          // Merge: Keep active store products (authoritative for edits/adds) and include any additional Supabase products
-          const localIds = new Set(list.map((p) => p.id));
-          const supabaseExtra = supabaseFormatted.filter((p: any) => !localIds.has(p.id));
-          list = [...list, ...supabaseExtra];
-        }
-      } catch (err) {
-        console.warn('Supabase product query fallback:', err);
-      }
-    }
+    let list = await getCatalog();
 
     if (category && category !== 'all') {
       list = list.filter((p) => p.category === category);
@@ -61,11 +36,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isAdmin(request)) return forbiddenAdmin();
+  if (isSupabaseConfigured && !supabaseAdmin) {
+    return NextResponse.json({ success: false, error: MISSING_SERVICE_KEY_ERROR }, { status: 500 });
+  }
+
   try {
     const body = await request.json();
 
-    if (!body.name || !body.price) {
-      return NextResponse.json({ success: false, error: 'Name and price are required' }, { status: 400 });
+    const price = Number(body.price);
+    if (typeof body.name !== 'string' || !body.name.trim() || !Number.isFinite(price) || price <= 0) {
+      return NextResponse.json({ success: false, error: 'Name and a valid price are required' }, { status: 400 });
     }
 
     // 1. Add to synchronized product store immediately
@@ -85,8 +66,8 @@ export async function POST(request: Request) {
     });
 
     // 2. Attempt insert to Supabase
-    const client = supabaseAdmin || supabase;
-    if (isSupabaseConfigured && client) {
+    const client = supabaseAdmin;
+    if (client) {
       try {
         const supabasePayload = {
           id: newProduct.id,

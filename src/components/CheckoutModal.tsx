@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useStore } from '@/context/StoreContext';
 import { Order } from '@/types';
+import { deliveryFeeFor, promoDiscountFor } from '@/lib/pricing';
 
 const STEP_TITLES = [
   'Order Summary',
@@ -34,6 +35,7 @@ export default function CheckoutModal() {
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoDiscount, setPromoDiscount] = useState(0);
+  const [appliedPromoCode, setAppliedPromoCode] = useState('');
 
   // Address state
   const [address, setAddress] = useState({
@@ -65,8 +67,11 @@ export default function CheckoutModal() {
 
   if (!isCheckoutOpen) return null;
 
-  const deliveryFee = subtotal >= 499 ? 0 : 40;
-  const grandTotal = Math.max(0, subtotal + deliveryFee - promoDiscount);
+  // Same rules the server uses (lib/pricing.ts); the server has the final say on the total.
+  const appliedCode = promoApplied ? appliedPromoCode : '';
+  const deliveryFee = deliveryFeeFor(subtotal);
+  const liveDiscount = promoApplied ? promoDiscountFor(appliedCode, subtotal) ?? 0 : promoDiscount;
+  const grandTotal = Math.max(0, subtotal + deliveryFee - liveDiscount);
 
   const applyPromo = () => {
     const code = promoCode.trim().toUpperCase();
@@ -78,11 +83,13 @@ export default function CheckoutModal() {
     if (code === 'FRESH10') {
       const discount = Math.round(subtotal * 0.1);
       setPromoDiscount(discount);
+      setAppliedPromoCode(code);
       setPromoApplied(true);
       showToast('FRESH10 applied! 10% off 🎉', '🎁');
       triggerHaptic('success');
     } else if (code === 'FREE499') {
-      setPromoDiscount(40);
+      setPromoDiscount(deliveryFeeFor(subtotal));
+      setAppliedPromoCode(code);
       setPromoApplied(true);
       showToast('FREE499 applied! Free delivery 🚚', '🎁');
       triggerHaptic('success');
@@ -135,7 +142,8 @@ export default function CheckoutModal() {
             : paymentMethod === 'netbank'
             ? 'Direct Bank Transfer'
             : 'Cash on Delivery',
-        promoDiscount,
+        promoDiscount: liveDiscount,
+        promoCode: appliedCode || undefined,
         deliveryFee,
       };
 
@@ -239,7 +247,7 @@ export default function CheckoutModal() {
                 {promoApplied && (
                   <div className="checkout-total-row" style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', marginBottom: '6px' }}>
                     <span>Promo Discount</span>
-                    <span>-Rs. {promoDiscount.toFixed(2)}</span>
+                    <span>-Rs. {liveDiscount.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="checkout-total-row grand" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.2rem', color: 'var(--primary)', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
@@ -299,7 +307,7 @@ export default function CheckoutModal() {
                   />
                 </div>
                 <div className="form-group">
-                  <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Postal Code / Pincode *</label>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>Postal Code *</label>
                   <input
                     type="text"
                     placeholder="11410"
@@ -461,7 +469,7 @@ export default function CheckoutModal() {
                   onClick={() => {
                     const placedOrder = orders.find((o) => o.id === lastOrderId) || {
                       id: lastOrderId,
-                      date: new Date().toLocaleDateString('en-IN', {
+                      date: new Date().toLocaleDateString('en-LK', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
@@ -475,11 +483,11 @@ export default function CheckoutModal() {
                       address: { ...address },
                       paymentMethod:
                         paymentMethod === 'upi'
-                          ? 'UPI / Instant Pay'
+                          ? 'Online / Card Payment'
                           : paymentMethod === 'card'
                           ? 'Credit / Debit Card'
                           : paymentMethod === 'netbank'
-                          ? 'Net Banking'
+                          ? 'Direct Bank Transfer'
                           : 'Cash on Delivery',
                     };
                     clearCart();

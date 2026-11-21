@@ -155,6 +155,8 @@ export default function AdminDashboardPage() {
           setNewProduct((prev) => ({ ...prev, image: data.url }));
         }
         showToast('Image uploaded successfully');
+      } else {
+        showToast(data.error || 'Image upload failed');
       }
     } catch (err) {
       console.error('File upload error:', err);
@@ -305,62 +307,55 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Verify saved owner session on mount
+  // Verify the owner session (httpOnly cookie) with the server on mount
   useEffect(() => {
+    fetch('/api/admin/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.admin) {
+          setIsAdminAuthenticated(true);
+          fetchOrders();
+          fetchProducts();
+          fetchInquiries();
+          fetchUsers();
+        }
+      })
+      .catch((e) => console.error('Session check error:', e))
+      .finally(() => setCheckingAuth(false));
+  }, []);
+
+  const handleOwnerLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPass = passcodeInput.trim();
+    if (!cleanPass) return;
+
     try {
-      const savedSession =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('freshmart_owner_session') || sessionStorage.getItem('freshmart_owner_session')
-          : null;
-      if (savedSession === 'authorized_owner_2026') {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: cleanPass, remember: rememberDevice }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
         setIsAdminAuthenticated(true);
+        setAuthError(null);
+        setPasscodeInput('');
+        showToast('Owner session authenticated. Welcome to Store Hub!');
         fetchOrders();
         fetchProducts();
         fetchInquiries();
         fetchUsers();
+      } else {
+        setAuthError(data.error || 'Access denied: Invalid business owner passcode.');
       }
-    } catch (e) {
-      console.error('Session check error:', e);
-    } finally {
-      setCheckingAuth(false);
-    }
-  }, []);
-
-  const handleOwnerLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPass = passcodeInput.trim();
-
-    if (
-      cleanPass === 'admin123' ||
-      cleanPass === 'freshmart2026' ||
-      cleanPass === 'owner123' ||
-      cleanPass === '8899'
-    ) {
-      try {
-        if (rememberDevice) {
-          localStorage.setItem('freshmart_owner_session', 'authorized_owner_2026');
-        } else {
-          sessionStorage.setItem('freshmart_owner_session', 'authorized_owner_2026');
-        }
-      } catch (err) {}
-
-      setIsAdminAuthenticated(true);
-      setAuthError(null);
-      showToast('Owner session authenticated. Welcome to Store Hub!');
-      fetchOrders();
-      fetchProducts();
-      fetchInquiries();
-      fetchUsers();
-    } else {
-      setAuthError('Access denied: Invalid business owner passcode.');
+    } catch {
+      setAuthError('Network error. Please try again.');
     }
   };
 
   const handleOwnerLogout = () => {
-    try {
-      localStorage.removeItem('freshmart_owner_session');
-      sessionStorage.removeItem('freshmart_owner_session');
-    } catch (err) {}
+    fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
     setIsAdminAuthenticated(false);
     setPasscodeInput('');
     showToast('Owner session locked.');
@@ -566,7 +561,7 @@ export default function AdminDashboardPage() {
       'User Email',
       'Delivery Address',
       'City',
-      'Pincode',
+      'Postal Code',
       'Delivery Slot',
       'Payment Method',
       'Items Count',
@@ -867,7 +862,7 @@ export default function AdminDashboardPage() {
                   type={showPasscode ? 'text' : 'password'}
                   required
                   autoFocus
-                  placeholder="Enter passcode (e.g. admin123)"
+                  placeholder="Enter owner passcode"
                   value={passcodeInput}
                   onChange={(e) => {
                     setPasscodeInput(e.target.value);
@@ -928,7 +923,6 @@ export default function AdminDashboardPage() {
                 />
                 <span>Remember this device</span>
               </label>
-              <span style={{ color: '#15803d', fontWeight: 600, fontSize: '0.78rem' }}>Passcode: admin123</span>
             </div>
 
             <button
